@@ -1,0 +1,3 @@
+[submodule "hosting"]
+	path = hosting
+	url = git@github.com:Yakako/hosting.git
