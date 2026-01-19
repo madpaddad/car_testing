@@ -1,3 +1,6 @@
 [submodule "hosting"]
 	path = hosting
 	url = git@github.com:Yakako/hosting.git
+[submodule "car_testing_api"]
+	path = car_testing_api
+	url = git@github.com:madpaddad/car_testing_api.git
