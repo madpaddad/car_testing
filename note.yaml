@@ -1,6 +1,8 @@
-# version: '3.8'
+version: '3.8'
+
 services:
 
+  # ------------------ API ------------------
   api:
     build: ./car_testing_api
     container_name: car-classification-api
@@ -13,7 +15,8 @@ services:
     restart: unless-stopped
     networks:
       - adv-net
-  
+
+  # ------------------ Frontend ------------------
   web:
     build: ./hosting
     container_name: car-classification-web
@@ -25,6 +28,7 @@ services:
     networks:
       - adv-net
 
+  # ------------------ Postgres ------------------
   postgres:
     image: postgres:16
     container_name: car-classification-db
@@ -32,13 +36,33 @@ services:
       - POSTGRES_USER=car_user
       - POSTGRES_PASSWORD=car_password
       - POSTGRES_DB=car_classification
-
     ports:
       - "5433:5432"
     restart: unless-stopped
     networks:
       - adv-net
-  
+
+  # ------------------ Certbot ------------------
+  certbot:
+    image: certbot/certbot
+    container_name: car-classification-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: >
+      sh -c "
+      mkdir -p /var/www/certbot &&
+      certbot certonly --webroot -w /var/www/certbot -d car.ams.cards --non-interactive --agree-tos -m your-email@example.com || true &&
+      while :; do
+        sleep 12h &
+        wait $${!}
+        certbot renew --webroot -w /var/www/certbot --quiet
+      done
+      "
+    networks:
+      - adv-net
+
+  # ------------------ Nginx ------------------
   nginx:
     image: nginx:latest
     container_name: car-classification-nginx
@@ -52,21 +76,16 @@ services:
     depends_on:
       - api
       - web
-    restart: unless-stopped
-    networks:
-      - adv-net
-  
-  certbot:
-    image: certbot/certbot
-    container_name: certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - certbot
     entrypoint: >
-      sh -c "trap exit TERM; while :; do sleep 12h & wait $${!}; 
-        certbot renew --webroot -w /var/www/certbot --quiet;
-        docker exec car-classification-nginx nginx -s reload; 
-          done"
+      sh -c "
+        # wait for certs to exist
+        until [ -f /etc/letsencrypt/live/car.ams.cards/fullchain.pem ]; do
+          echo 'Waiting for SSL certificate...'; sleep 3;
+        done
+        nginx -g 'daemon off;'
+      "
+    restart: unless-stopped
     networks:
       - adv-net
 
